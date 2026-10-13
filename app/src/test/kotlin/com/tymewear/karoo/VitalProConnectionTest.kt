@@ -227,6 +227,21 @@ class VitalProConnectionTest {
     }
 
     @Test
+    fun `a strap that never advertises falls back to autoConnect after the scan window`() {
+        val device = karoo.host<TymewearExtension>().connectDevice(STRAP_ADDRESS)
+        ble.awaitScan()
+        assertEquals(0, strap.connectionAttempts)
+
+        // No advertisement arrives, so the targeted scan times out and the extension
+        // connects directly instead of waiting longer.
+        RobolectricPump.advanceBy(Constants.BLE_INITIAL_SCAN_TIMEOUT_MS.milliseconds + 1.seconds)
+
+        strap.awaitConnectionRequest()
+        assertFalse(ble.isScanning)
+        device.awaitStatus(ConnectionStatus.SEARCHING)
+    }
+
+    @Test
     fun `after the rapid retries fail the extension makes one slow-phase attempt and waits`() {
         val device = karoo.host<TymewearExtension>().connectDevice(STRAP_ADDRESS)
         strap.advertise()

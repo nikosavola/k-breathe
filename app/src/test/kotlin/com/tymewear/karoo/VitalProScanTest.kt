@@ -132,4 +132,30 @@ class VitalProScanTest {
         RobolectricPump.advanceBy(35.seconds)
         assertTrue(ble.isScanning)
     }
+
+    @Test
+    fun `a scan deferred by the rate budget never starts if it is cancelled first`() {
+        val host = karoo.host<TymewearExtension>()
+        repeat(ScanThrottle.DEFAULT_MAX_STARTS) {
+            val scan = host.startScan()
+            ble.awaitScan()
+            host.stopScan(scan)
+            awaitScanStopped()
+        }
+        val deferred = host.startScan()
+        // The fifth start is parked on the main looper rather than issued.
+        karoo.awaitValue {
+            shadowOf(Looper.getMainLooper()).nextScheduledTaskTime.takeIf { it > Duration.ZERO }
+        }
+
+        host.stopScan(deferred)
+        // Let the cancellation tear the scan flow down before the deferred start would
+        // have been due, so advancing the clock cannot race it.
+        karoo.awaitValue {
+            true.takeIf { shadowOf(Looper.getMainLooper()).nextScheduledTaskTime == Duration.ZERO }
+        }
+        RobolectricPump.advanceBy(35.seconds)
+
+        assertFalse(ble.isScanning)
+    }
 }
